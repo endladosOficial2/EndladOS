@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ЭндладОС</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script> <!-- Подключение JSZip -->
+    <style>
+        body {
+            background-color: #001f3f;
+            color: white;
+            font-family: Arial, sans-serif;
+        }
+        .app-button {
+            background-color: transparent;
+            border: none;
+            cursor: pointer;
+        }
+        .app-icon {
+            width: 100px;
+            height: 100px;
+        }
+        .app-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            padding: 20px;
+        }
+        .nav-buttons {
+            position: fixed;
+            bottom: 10px;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+        }
+        .nav-buttons button {
+            background-color: lightblue;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 15px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        .nav-buttons button:hover {
+            background-color: white;
+        }
+        .rounded-div {
+            background-color: lightblue;
+            padding: 10px;
+            border-radius: 15px;
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+        }
+        #no-apps-message {
+            text-align: center;
+            padding: 50px;
+        }
+        /* Стиль для кнопки загрузки приложения */
+        #upload-button {
+            background-color: black;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 20px 0;
+            transition: background-color 0.3s ease;
+        }
+        #upload-button:hover {
+            background-color: white;
+            color: black;
+        }
+    </style>
+</head>
+<body>
+<div id="clock" style="font-size: 24px; color: white;"></div>
+
+<script>
+    async function fetchInternetTime() {
+        try {
+            const response = await fetch('http://worldtimeapi.org/api/timezone/Europe/Moscow');
+            const data = await response.json();
+            const dateTime = new Date(data.utc_datetime);
+            updateClock(dateTime);
+        } catch (error) {
+            console.error('Ошибка получения времени:', error);
+			alert('Ошибка получения времени:')
+        }
+    }
+
+    function updateClock(now) {
+        const hours = now.getUTCHours().toString().padStart(2, '0');
+        const minutes = now.getUTCMinutes().toString().padStart(2, '0');
+        const seconds = now.getUTCSeconds().toString().padStart(2, '0');
+        const timeString = `${hours}:${minutes}:${seconds} UTC`;
+        
+        document.getElementById('clock').textContent = timeString;
+    }
+
+    setInterval(fetchInternetTime, 1000);
+    fetchInternetTime(); // Первоначальный вызов для немедленного получения времени
+</script>
+
+<h1>EndladOS 1.1</h1>
+    <h5>Сохранённые приложения</h5>
+    <div id="app-container" class="app-container"></div>
+    <div id="no-apps-message" style="display: none;">Нет сохранённых приложений</div>
+
+    
+
+    <div class="nav-buttons">
+        <div class="rounded-div">
+            <button onclick="goHome()">Домой</button>
+            <button onclick="goBack()">Назад</button>
+            <<input type="file" id="file-input" style="display: none;" accept=".wapp,.eap,.tapp" />
+    <button id="upload-button" onclick="document.getElementById('file-input').click();">Установить приложение</button>
+        </div>
+    </div>
+
+    <script>
+        // Функция для отображения сохранённых приложений
+        const savedApps = JSON.parse(localStorage.getItem('savedApps')) || [];
+
+        function loadSavedApps() {
+            const appContainer = document.getElementById('app-container');
+            const noAppsMessage = document.getElementById('no-apps-message');
+
+            if (savedApps.length > 0) {
+                noAppsMessage.style.display = 'none';
+                appContainer.innerHTML = ''; // Очищаем контейнер перед загрузкой
+                savedApps.forEach(app => {
+                    const appButton = document.createElement('button');
+                    appButton.classList.add('app-button');
+                    appButton.onclick = () => window.open(app.url, '_blank');
+
+                    const appIcon = document.createElement('img');
+                    appIcon.src = app.icon;
+                    appIcon.alt = app.name;
+                    appIcon.classList.add('app-icon');
+
+                    appButton.appendChild(appIcon);
+                    appContainer.appendChild(appButton);
+                });
+            } else {
+                noAppsMessage.style.display = 'block';
+            }
+        }
+
+        // Функция обработки выбранного файла
+        document.getElementById('file-input').addEventListener('change', function (event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function (e) {
+                    const content = e.target.result;
+                    JSZip.loadAsync(content).then(function (zip) {
+                        zip.file("application.ini").async("string").then(function (iniContent) {
+                            const appData = parseIniFile(iniContent);
+                            // Добавляем обработку icon.png
+                            zip.file("icon.png").async("base64").then(function (iconData) {
+                                const app = {
+                                    name: appData.app_name,
+                                    url: appData.site,  // для WAPP
+                                    icon: "data:image/png;base64," + iconData
+                                };
+                                savedApps.push(app);
+                                localStorage.setItem('savedApps', JSON.stringify(savedApps));
+                                loadSavedApps();
+                            });
+                        });
+                    }).catch(function (err) {
+                        console.error("Ошибка при загрузке ZIP файла:", err);
+                    });
+                };
+                reader.readAsArrayBuffer(file);
+            }
+        });
+
+        // Функции для кнопок навигации
+        function goHome() {
+            console.log('Переход на главную страницу.');
+			closeIframe1()
+        }
+
+        function goBack() {
+            window.history.back();
+        }
+
+window.parent.closeIframe1(); 
+
+function closeIframe1()
+{
+    $(".nodeOption, .nodeOptionBlack").fadeOut(200);
+    return false;
+}
+        
+
+        // Парсер INI файла
+        function parseIniFile(content) {
+            const lines = content.split('\n');
+            const appData = {};
+            lines.forEach(line => {
+                const [key, value] = line.split('=');
+                if (key && value) {
+                    appData[key.trim()] = value.trim();
+                }
+            });
+            return appData;
+        }
+
+        // Загружаем сохранённые приложения при загрузке страницы
+        window.onload = loadSavedApps;
+		
+		
+		
+    </script>
+
+</body>
+</html>
